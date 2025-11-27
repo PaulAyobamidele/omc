@@ -12,29 +12,40 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: omc
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U test_user"
+          --health-cmd="pg_isready -U postgres"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
+      # --------------------- BACKEND ---------------------
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Install backend deps
+      - name: Install backend dependencies
         run: |
           cd api
           pip install -r requirements.txt
+
+      - name: Run Django migrations
+        env:
+          DB_HOST: localhost
+          DB_NAME: omc
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          cd api
           python manage.py migrate --noinput
 
       - name: Run backend tests
@@ -42,13 +53,18 @@ jobs:
           cd api
           python manage.py test
 
-      - name: Set up Node.js
+      # --------------------- FRONTEND ---------------------
+      - name: Set up Node
         uses: actions/setup-node@v3
         with:
           node-version: "18"
 
-      - name: Install frontend deps
+      - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
+
+      - name: Build frontend
+        run: |
+          cd frontend
           npm run build

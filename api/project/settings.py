@@ -176,3 +176,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'users.User'
 
 
+if os.environ.get("GITHUB_ACTIONS"):
+    DATABASES["default"]["HOST"] = "localhost"
