@@ -461,3 +461,103 @@ If you want, I can also show you:
 ### ✔ How to enforce standards with tools (flake8, black, pre-commit, prettier)
 
 Just tell me: **“Show me what to check in a PR.”**
+
+
+
+HOW TO GO THROUGH THE WORKFLOW
+
+Great! You’re in the `feature/test-feature-cicd` branch and ready to push cleanly. Let’s go step by step so your branch is **up to date**, commits are clean, and it’s ready for a **Pull Request (PR)** on GitHub.
+
+---
+
+### 1️⃣ Make sure your branch is up to date with `develop`
+
+First, pull the latest changes from `develop` to your local `develop` branch:
+
+```bash
+git checkout develop
+git pull origin develop
+```
+
+Then go back to your feature branch and rebase on top of the updated `develop`:
+
+```bash
+git checkout feature/test-feature-cicd
+git rebase develop
+```
+
+✅ Rebasing ensures your feature branch has all the latest commits from `develop` and avoids unnecessary merge commits.
+
+> If there are conflicts during rebase, Git will pause and show you which files to fix. Fix them, then:
+
+```bash
+git add <file-with-conflict>
+git rebase --continue
+```
+
+---
+
+### 2️⃣ Make sure all your changes are committed
+
+Check for any uncommitted changes:
+
+```bash
+git status
+```
+
+* If you see **modified but not staged** files:
+
+```bash
+git add .
+git commit -m "Describe what you changed"
+```
+
+* If everything is already committed, you can skip this.
+
+---
+
+### 3️⃣ Push your branch to GitHub
+
+If your branch already exists on GitHub:
+
+```bash
+git push origin feature/test-feature-cicd
+```
+
+If it’s the first push:
+
+```bash
+git push -u origin feature/test-feature-cicd
+```
+
+> `-u` sets the upstream so next time you can just `git push`.
+
+---
+
+### 4️⃣ Open a Pull Request (PR)
+
+Once pushed:
+
+1. Go to your GitHub repo.
+2. You’ll see a banner: *“Compare & pull request”* for your branch.
+3. Click it, set the base branch as `develop`, and create the PR.
+
+---
+
+### 5️⃣ Keep your branch clean while working
+
+* Always **rebase from `develop`** before pushing to avoid conflicts:
+
+```bash
+git fetch origin
+git rebase origin/develop
+```
+
+* Commit often with **clear messages**.
+* Never push sensitive info; use **GitHub secrets** for passwords.
+
+---
+
+If you want, I can give you a **one-liner workflow** that makes it almost impossible to mess up branches and ensures smooth PRs every time.
+
+Do you want me to do that?
