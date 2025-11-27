@@ -289,3 +289,175 @@ I can generate:
 ✔ README for contributors
 
 Just type: **"Yes, create the full project structure"**
+
+
+Great question — this is **the real job of a team lead or professional developer**, and it’s the step that separates hobby projects from production-grade engineering.
+
+Let me break down EXACTLY what you do during the Pull Request (PR) stage, **step-by-step**, and what your responsibility is as team lead or contributor.
+
+---
+
+# ✅ **What You Actually Do When Opening a Pull Request**
+
+A PR is simply a request to merge your work into a protected branch (usually `develop` or `main`).
+
+When you finish a feature:
+
+```sh
+git add .
+git commit -m "Implement teacher grade entry"
+git push origin feature/teacher-grade-entry
+```
+
+Then you go to GitHub:
+
+### → Click **"Compare & pull request"**
+
+You will see:
+
+```
+base: develop   ←   compare: feature/teacher-grade-entry
+```
+
+This means:
+
+* You are asking GitHub to merge the code **from your feature branch**
+* **Into the develop branch**
+
+This is the **only safe way** to add new features without breaking the main app.
+
+---
+
+# ✅ **Your actual function here (as team lead or contributor)**
+
+During the PR process, you:
+
+---
+
+# **1️⃣ Verify That the Code Does Not Break Anything**
+
+You check:
+
+✔ Tests passed
+✔ CI pipeline passed
+✔ No red errors
+✔ No merge conflicts
+✔ Code runs locally
+
+---
+
+# **2️⃣ Do a Code Review (the most important team lead role)**
+
+You check:
+
+* code quality
+* naming conventions
+* security issues
+* database queries
+* performance implications
+* Django best practices
+* React code patterns
+* folder structure
+
+You also check that developers:
+
+* didn’t hardcode secrets
+* didn’t add unnecessary libraries
+* didn’t break API contracts
+* didn’t break frontend layout
+
+This protects the project.
+
+---
+
+# **3️⃣ Leave Comments**
+
+Example:
+
+> "Great work! Please move validation logic from the view to the serializer."
+
+or
+
+> "Can you paginate this endpoint? It may return too many results."
+
+or
+
+> "Avoid running heavy DB queries inside a loop. Use select_related."
+
+This teaches your team good habits.
+
+---
+
+# **4️⃣ Request Changes OR Approve**
+
+You click one of:
+
+* **"Request changes"** – if the PR isn’t ready
+* **"Approve"** – once everything looks good
+* **"Comment"** – neutral feedback
+
+---
+
+# **5️⃣ Merge the Branch**
+
+Once approved:
+
+* GitHub gives you a **Merge** button
+* You select **Squash & merge** or **Merge commit**
+* The feature now lives safely in the `develop` branch
+
+---
+
+# **6️⃣ Delete the Feature Branch**
+
+GitHub will show:
+
+> Delete branch
+
+You click it.
+
+Why?
+
+* keeps repo clean
+* feature branches should not live forever
+
+---
+
+# 🌟 So in simple terms: **What is your real function here?**
+
+### You act as the **quality gatekeeper** between:
+
+❌ raw code
+and
+✔ stable, production-ready code
+
+### Your job during a PR is to make sure:
+
+* the feature works
+* the code is clean
+* no bugs are introduced
+* other developers follow standards
+* nothing breaks in the app
+* dev workflow stays professional
+
+That’s literally your main responsibility as a **Tech Lead / Backend Lead / Project Lead**.
+
+---
+
+# 🎯 In One Line:
+
+**A Pull Request is your moment to prevent bad code from entering the main system.**
+
+---
+
+If you want, I can also show you:
+
+### ✔ What you should *specifically* check in a Django PR
+
+### ✔ What you should check in a React PR
+
+### ✔ How to write perfect PR review comments
+
+### ✔ How to enforce standards with tools (flake8, black, pre-commit, prettier)
+
+Just tell me: **“Show me what to check in a PR.”**
