@@ -1,0 +1,83 @@
+name: Django + React CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # --------------------- SERVICES ---------------------
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ${{ secrets.POSTGRES_USER }}"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    # --------------------- STEPS ---------------------
+    steps:
+      # --- Checkout code ---
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # --- Set up Python ---
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # --- Backend: Install dependencies ---
+      - name: Install backend dependencies
+        run: |
+          cd api
+          pip install -r requirements.txt
+
+      # --- Backend: Run Django migrations ---
+      - name: Run Django migrations
+        env:
+          DB_HOST: postgres                     # Must match the service name
+          DB_NAME: ${{ secrets.POSTGRES_DB }}   # e.g., "school_db"
+          DB_USER: ${{ secrets.POSTGRES_USER }} # e.g., "postgres"
+          DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          cd api
+          python manage.py migrate --noinput
+
+      # --- Backend: Run tests ---
+      - name: Run backend tests
+        env:
+          DB_HOST: postgres
+          DB_NAME: ${{ secrets.POSTGRES_DB }}
+          DB_USER: ${{ secrets.POSTGRES_USER }}
+          DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          cd api
+          python manage.py test
+
+      # --- Frontend: Set up Node ---
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      # --- Frontend: Install dependencies ---
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm install
+
+      # --- Frontend: Build frontend ---
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build

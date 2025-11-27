@@ -33,3 +33,6 @@ yarn-error.log*
 
 # Postgres (if using a volume)
 pgdata/
+
+
+notes.md
