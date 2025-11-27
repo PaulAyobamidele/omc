@@ -1,0 +1,54 @@
+name: Django + React CI
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test_user"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install backend deps
+        run: |
+          cd api
+          pip install -r requirements.txt
+          python manage.py migrate --noinput
+
+      - name: Run backend tests
+        run: |
+          cd api
+          python manage.py test
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install frontend deps
+        run: |
+          cd frontend
+          npm install
+          npm run build
