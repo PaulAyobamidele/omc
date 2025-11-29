@@ -3,12 +3,14 @@ import Login from "./features/auth/Login";
 import ParentDashboard from "./features/parent/ParentDashboard";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import TeacherDashboard from "./features/teacher/TeacherDashboard";
+import Signup from "./features/auth/Signup";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
 
         <Route element={<ProtectedRoute allowedRoles={['PARENT']} />}>
           <Route path="/parent/dashboard" element={<ParentDashboard />} />
