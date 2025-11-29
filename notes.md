@@ -561,3 +561,189 @@ git rebase origin/develop
 If you want, I can give you a **one-liner workflow** that makes it almost impossible to mess up branches and ensures smooth PRs every time.
 
 Do you want me to do that?
+
+
+
+# 🚀 Git Feature Workflow Cheat Sheet (Professional Team Workflow)
+
+A clean, printable reference for working with branches, features, rebasing, and PRs.
+
+---
+
+## 🌿 Branch Types
+
+* **main** → Production-only
+* **develop** → Stable integration branch
+* **feature/*** → New features
+* **release/*** → Preparing production releases
+* **hotfix/*** → Emergency fixes for main
+
+---
+
+## 🧱 Daily Workflow Overview
+
+```
+feature → rebase develop → push → PR → review → merge → delete branch
+```
+
+---
+
+# 📌 Creating a Feature Branch
+
+```sh
+git checkout develop
+git pull origin develop
+
+git checkout -b feature/your-feature-name
+```
+
+---
+
+# ✏️ Commit Your Work
+
+```sh
+git add .
+git commit -m "Describe the feature or fix"
+```
+
+Check status:
+
+```sh
+git status
+```
+
+---
+
+# 🔄 Keep Your Feature Updated (Rebase)
+
+Ensure your feature has latest changes from develop:
+
+```sh
+git checkout develop
+git pull origin develop
+
+git checkout feature/your-feature-name
+git rebase develop
+```
+
+If conflicts appear:
+
+```sh
+git add <file>
+git rebase --continue
+```
+
+---
+
+# ⬆️ Push Your Feature Branch
+
+If first push:
+
+```sh
+git push -u origin feature/your-feature-name
+```
+
+Otherwise:
+
+```sh
+git push
+```
+
+---
+
+# 🔀 Opening a Pull Request (PR)
+
+On GitHub:
+
+```
+base: develop
+compare: feature/your-feature-name
+```
+
+Add title → Add description → Create Pull Request.
+
+---
+
+# 🛠 Keeping PR Updated
+
+```sh
+git fetch origin
+git rebase origin/develop
+
+git push --force-with-lease
+```
+
+---
+
+# 🧹 Cleaning Up After Merge
+
+After PR is merged, delete the branch:
+
+```sh
+git branch -d feature/your-feature-name
+```
+
+GitHub will also offer:
+
+> Delete remote branch
+
+Click it.
+
+---
+
+# 🆘 Hotfix Workflow (Emergency Fix)
+
+```sh
+git checkout main
+git pull origin main
+
+git checkout -b hotfix/hotfix-name
+```
+
+Fix → Commit → Push → PR to main.
+
+Then merge back:
+
+```sh
+git checkout develop
+git merge hotfix/hotfix-name
+```
+
+---
+
+# 🏷 Release Workflow
+
+```sh
+git checkout develop
+git pull
+
+git checkout -b release/v1.0.0
+```
+
+Prepare → Test → PR into main.
+
+Tag:
+
+```sh
+git tag v1.0.0
+git push --tags
+```
+
+Merge back:
+
+```sh
+git checkout develop
+git merge release/v1.0.0
+```
+
+---
+
+# 🧭 Quick Commands Reference
+
+```
+Create branch     → git checkout -b feature/name
+Update branch     → git rebase develop
+Push branch       → git push -u origin feature/name
+Fix conflicts     → git add . + git rebase --continue
+Delete branch     → git branch -d feature/name
+```
