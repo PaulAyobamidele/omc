@@ -3,7 +3,7 @@ import Login from "./features/auth/Login";
 import ParentDashboard from "./features/parent/ParentDashboard";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import TeacherDashboard from "./features/teacher/TeacherDashboard";
-import Signup from "./features/auth/Signup";
+import Signup from "./features/auth/SignUp";
 
 function App() {
   return (
