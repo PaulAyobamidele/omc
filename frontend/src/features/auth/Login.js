@@ -28,6 +28,7 @@ function Login() {
         <input name="username" placeholder="username" />
         <input name="password" type="password" placeholder="password" />
         <button type="submit">Login</button>
+        <p> Don't have an account? <a href="/signup">Sign Up</a></p>
 
         {loading && <p>Loading...</p>}
         {error && <p>{error.detail}</p>}
