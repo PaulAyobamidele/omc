@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-import { store } from '../store/store';
-import {updateTokens} from '../features/auth/authSlice';
+import { store } from '../store/store.jsx';
+import {updateTokens} from '../features/auth/authSlice.jsx';
 
 
 const BASE_URL = "http://localhost:8000/api";

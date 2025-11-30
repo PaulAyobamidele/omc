@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Login from "./features/auth/Login";
+import Login from "./features/auth/Login.jsx";
 import ParentDashboard from "./features/parent/ParentDashboard";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import TeacherDashboard from "./features/teacher/TeacherDashboard";
-import Signup from "./features/auth/SignUp";
+import Signup from "./features/auth/Signup.jsx";
 
 function App() {
   return (
