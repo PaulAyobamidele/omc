@@ -85,12 +85,13 @@ export const signupUser = createAsyncThunk(
 const authSlice = createSlice({
     name: 'auth',
     initialState: {
-        user: null,
-        accessToken: null,
-        refreshToken: null,
+        user: JSON.parse(localStorage.getItem("user")) || null,
+        accessToken: localStorage.getItem("access") || null,
+        refreshToken: localStorage.getItem("refresh") || null,
         loading: false,
         error: null,
     },
+    
 
 
     reducers: {
@@ -100,6 +101,10 @@ const authSlice = createSlice({
             state.refreshToken = null;
             state.loading = false;
             state.error = null;
+
+            localStorage.removeItem("access");
+            localStorage.removeItem("refresh");
+            localStorage.removeItem("user");
         },
 
         updateTokens: (state, action) => {
@@ -121,6 +126,12 @@ const authSlice = createSlice({
                 state.user = action.payload.user;
                 state.accessToken = action.payload.access;
                 state.refreshToken = action.payload.refresh;
+
+
+                localStorage.setItem("access", action.payload.access);
+                localStorage.setItem("refresh", action.payload.refresh);
+                localStorage.setItem("user", JSON.stringify(action.payload.user));
+
             })
             .addCase(loginUser.rejected, (state, action) => {
                 state.loading = false;
@@ -136,6 +147,11 @@ const authSlice = createSlice({
                 state.user = action.payload.user;
                 state.accessToken = action.payload.access;
                 state.refreshToken = action.payload.refresh;
+
+                localStorage.setItem("access", action.payload.access);
+                localStorage.setItem("refresh", action.payload.refresh);
+                localStorage.setItem("user", JSON.stringify(action.payload.user));
+
             })
             .addCase(signupUser.rejected, (state, action) => {
                 state.loading = false;

@@ -1,12 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import path from 'path';
 
 export default defineConfig({
   plugins: [
     react({
-      jsxRuntime: 'automatic', // ensures React import isn't required in JSX
+      jsxRuntime: 'automatic',
     }),
-    tailwindcss(), // separate plugin
+    tailwindcss(),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'), // <-- add this line
+    },
+  },
 });
