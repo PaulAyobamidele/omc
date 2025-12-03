@@ -4,6 +4,7 @@ import ParentDashboard from "./features/parent/ParentDashboard";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import TeacherDashboard from "./features/teacher/TeacherDashboard";
 import Signup from "./features/auth/Signup.jsx";
+import EnterGradeForm from "./features/teacher/EnterGrade.jsx";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
 
         <Route element={<ProtectedRoute allowedRoles={['TEACHER']} />}>
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+          <Route path="/teacher/enter-grade" element={<EnterGradeForm />} />
         </Route>
 
       </Routes>
