@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     'teachers',
     'parents',
     'students',
+    'classes',
+    'subjects',
     'grades',
     'reports',
     'rest_framework',
