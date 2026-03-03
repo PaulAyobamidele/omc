@@ -1,29 +1,15 @@
-import axios from 'axios';
+import api from "./axiosClient";
 
-import { store } from '../store/store.jsx';
-import {updateTokens} from '../features/auth/authSlice.jsx';
+export const authApi = {
+  login: (username, password) =>
+    api.post("/token/", { username, password }),
 
+  signup: (data) =>
+    api.post("/users/signup/", data),
 
-const BASE_URL = "http://localhost:8000/api";
+  refreshToken: (refresh) =>
+    api.post("/token/refresh/", { refresh }),
 
-export async function loginApi(username, password){
-    const response = await axios.post(`${BASE_URL}/auth/login/`, {
-        username,
-        password
-    });
-    return response.data;
-}
-
-
-export async function refreshTokenApi(){
-    const state = store.getState();
-    const refresh = state.auth.refreshToken;
-
-    const response = await axios.post(`${BASE_URL}/auth/refresh/`, {
-        refresh: refresh
-    });
-
-    store.dispatch(updateTokens(response.data));
-
-    return response.data;
-}
+  getMe: (token) =>
+    api.get("/users/me/", token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+};

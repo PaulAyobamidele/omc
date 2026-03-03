@@ -1,39 +1,38 @@
-// src/api/axiosClient.js
 import axios from "axios";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: API_BASE,
   withCredentials: false,
 });
 
-// We will inject the Redux store after it's created to avoid circular import
 let reduxStore = null;
 
 export const injectStore = (store) => {
   reduxStore = store;
 };
 
-// REQUEST INTERCEPTOR
 api.interceptors.request.use(
   (config) => {
-    if (!reduxStore) return config; // store isn't ready yet
-
-    const access = reduxStore.getState().auth.accessToken;
-
+    if (!reduxStore) return config;
+    const state = reduxStore.getState();
+    const access = state.auth.accessToken;
+    const slug = state.school?.slug;
     if (access) {
       config.headers["Authorization"] = `Bearer ${access}`;
     }
-
+    if (slug) {
+      config.headers["X-School-Slug"] = slug;
+    }
     config.headers["Content-Type"] = "application/json";
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// RESPONSE INTERCEPTOR (auto refresh token)
 api.interceptors.response.use(
   (response) => response,
-
   async (error) => {
     if (!reduxStore) return Promise.reject(error);
 
@@ -44,25 +43,27 @@ api.interceptors.response.use(
 
       try {
         const refresh = reduxStore.getState().auth.refreshToken;
+        if (!refresh) throw new Error("No refresh token");
 
-        const refreshResponse = await axios.post(
-          "http://localhost:8000/api/token/refresh/",
-          { refresh }
-        );
+        const response = await axios.post(`${API_BASE}/token/refresh/`, {
+          refresh,
+        });
 
-        const newAccess = refreshResponse.data.access;
+        const newAccess = response.data.access;
+        const newRefresh = response.data.refresh || refresh;
 
         reduxStore.dispatch({
           type: "auth/updateTokens",
-          payload: { access: newAccess },
+          payload: { access: newAccess, refresh: newRefresh },
         });
 
         originalRequest.headers["Authorization"] = `Bearer ${newAccess}`;
-        api.defaults.headers.common["Authorization"] = `Bearer newAccess`;
-
         return api(originalRequest);
-      } catch (err) {
+      } catch (refreshError) {
         reduxStore.dispatch({ type: "auth/logout" });
+        const slug = reduxStore.getState().school?.slug;
+        window.location.href = slug ? `/${slug}/login` : "/";
+        return Promise.reject(refreshError);
       }
     }
 

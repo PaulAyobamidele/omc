@@ -1,170 +1,160 @@
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { signupUser } from "./authSlice";
-import { useNavigate } from "react-router-dom";
+import { signupUser, clearError } from "./authSlice";
+import { useNavigate, Link, useParams } from "react-router-dom";
 
-function Signup() {
-    const dispatch = useDispatch();
-    const navigate = useNavigate();
-    const { loading, error, user } = useSelector((state) => state.auth);
+export default function Signup() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { schoolSlug } = useParams();
+  const { loading, error } = useSelector((state) => state.auth);
+  const { name: schoolName, logoUrl } = useSelector((state) => state.school);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const username = e.target.username.value;
-        const password = e.target.password.value;
-        const first_name = e.target.first_name.value;
-        const last_name = e.target.last_name.value;
-        const email = e.target.email.value;
-        const role = e.target.role.value; 
-        
-        dispatch(signupUser({ username, password, first_name, last_name, email, role }))
-            .unwrap()
-            .then((res) => {
-                navigate(`/${res.user.role.toLowerCase()}/dashboard`);
-            })
-            .catch(() => {});
-    };
+  const [form, setForm] = useState({
+    username: "",
+    password: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    role: "",
+  });
 
-    return (
-        <div className="flex min-h-screen flex-col justify-center px-6 py-12 lg:px-8 bg-gray-950">
-          {/* Heading */}
-          <div className="sm:mx-auto sm:w-full sm:max-w-sm">
-            <h2 className="mt-8 text-center text-2xl font-bold tracking-tight text-white">
-              Create your account
-            </h2>
-            <p className="mt-2 text-center text-sm text-gray-400">
-              Join the platform in seconds
-            </p>
-          </div>
-      
-          {/* Form */}
-          <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-            <form onSubmit={handleSubmit} className="space-y-6">
-      
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300">
-                  Username
-                </label>
-                <input
-                  name="username"
-                  placeholder="Enter username"
-                  required
-                  className="mt-2 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2
-                             text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-      
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300">
-                  Password
-                </label>
-                <input
-                  name="password"
-                  type="password"
-                  placeholder="Enter password"
-                  required
-                  className="mt-2 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2
-                             text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-      
-              {/* First Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300">
-                  First Name
-                </label>
-                <input
-                  name="first_name"
-                  placeholder="Enter first name"
-                  required
-                  className="mt-2 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2
-                             text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-      
-              {/* Last Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300">
-                  Last Name
-                </label>
-                <input
-                  name="last_name"
-                  placeholder="Enter last name"
-                  required
-                  className="mt-2 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2
-                             text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-      
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300">
-                  Email address
-                </label>
-                <input
-                  name="email"
-                  type="email"
-                  placeholder="Enter email"
-                  required
-                  className="mt-2 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2
-                             text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-      
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300">
-                  Role
-                </label>
-                <select
-                  name="role"
-                  required
-                  className="mt-2 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2
-                             text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                >
-                  <option value="">Select role</option>
-                  <option value="parent">Parent</option>
-                  <option value="teacher">Teacher</option>
-                </select>
-              </div>
-      
-              {/* Submit */}
-              <button
-                type="submit"
-                className="flex w-full justify-center rounded-md bg-indigo-600 px-4 py-2
-                           text-sm font-semibold text-white hover:bg-indigo-500 focus:ring-2
-                           focus:ring-indigo-500 focus:ring-offset-2"
-              >
-                Sign Up
-              </button>
-      
-              {/* Status Messages */}
-              {loading && (
-                <p className="text-center text-sm text-gray-400">Creating account...</p>
-              )}
-      
-              {error && (
-                <p className="text-center text-sm text-red-400">
-                  {JSON.stringify(error)}
-                </p>
-              )}
-            </form>
-      
-            {/* Already have account? */}
-            <p className="mt-6 text-center text-sm text-gray-400">
-              Already have an account?{" "}
-              <a
-                href="/login"
-                className="font-semibold text-indigo-400 hover:text-indigo-300"
-              >
-                Sign in
-              </a>
-            </p>
-          </div>
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    if (error) dispatch(clearError());
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    dispatch(signupUser(form))
+      .unwrap()
+      .then((res) => {
+        navigate(`/${schoolSlug}/${res.user.role}/dashboard`);
+      })
+      .catch(() => {});
+  };
+
+  const formatError = (err) => {
+    if (!err) return null;
+    if (typeof err === "string") return err;
+    if (err.detail) return err.detail;
+    return Object.entries(err)
+      .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(", ") : val}`)
+      .join(" | ");
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-visual">
+        <div className="auth-visual-content">
+          {logoUrl ? (
+            <img src={logoUrl} alt={schoolName} style={{ height: 64, borderRadius: 8, marginBottom: 16 }} />
+          ) : (
+            <span className="auth-logo">▣</span>
+          )}
+          <h1>{schoolName || "SchoolHub"}</h1>
+          <p>Join the platform. Manage classes, grades, and reports effortlessly.</p>
         </div>
-      );
-      
-}
+      </div>
 
-export default Signup;
+      <div className="auth-form-side">
+        <div className="auth-form-wrapper">
+          <h2>Create account</h2>
+          <p className="auth-subtitle">Get started in seconds</p>
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="first_name">First Name</label>
+                <input
+                  id="first_name"
+                  name="first_name"
+                  value={form.first_name}
+                  onChange={handleChange}
+                  placeholder="First name"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="last_name">Last Name</label>
+                <input
+                  id="last_name"
+                  name="last_name"
+                  value={form.last_name}
+                  onChange={handleChange}
+                  placeholder="Last name"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="your@email.com"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="username">Username</label>
+              <input
+                id="username"
+                name="username"
+                value={form.username}
+                onChange={handleChange}
+                placeholder="Choose a username"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="Min. 8 characters"
+                required
+                minLength={8}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="role">I am a...</label>
+              <select
+                id="role"
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select your role</option>
+                <option value="parent">Parent</option>
+                <option value="teacher">Teacher</option>
+              </select>
+            </div>
+
+            {error && <div className="form-error">{formatError(error)}</div>}
+
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Creating account..." : "Create Account"}
+            </button>
+          </form>
+
+          <p className="auth-switch">
+            Already have an account?{" "}
+            <Link to={`/${schoolSlug}/login`}>Sign in</Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

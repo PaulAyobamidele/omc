@@ -1,169 +1,121 @@
-import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
-import axios from 'axios';
-
-
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { authApi } from "../../api/authApi";
 
 export const loginUser = createAsyncThunk(
-    'auth/loginUser',
-    async ({ username, password }, thunkAPI) => {
-        try {
-            // 1. Get access + refresh tokens
-            const tokenResponse = await axios.post(
-                "http://localhost:8000/api/token/",
-                { username, password }
-            );
+  "auth/loginUser",
+  async ({ username, password }, thunkAPI) => {
+    try {
+      const tokenRes = await authApi.login(username, password);
+      const { access, refresh } = tokenRes.data;
 
-            const { access, refresh } = tokenResponse.data;
+      const userRes = await authApi.getMe(access);
 
-            // 2. Fetch user profile using the access token
-            const userResponse = await axios.get(
-                "http://localhost:8000/api/users/me/",
-                {
-                    headers: {
-                        Authorization: `Bearer ${access}`
-                    }
-                }
-            );
-
-            return {
-                access,
-                refresh,
-                user: userResponse.data,
-            };
-
-        } catch (error) {
-            return thunkAPI.rejectWithValue(error.response?.data || "Login failed");
-        }
+      return { access, refresh, user: userRes.data };
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data || { detail: "Login failed" }
+      );
     }
-
-
-    
+  }
 );
-
-
-// authSlice.js (add below loginUser)
 
 export const signupUser = createAsyncThunk(
-    'auth/signupUser',
-    async ({ username, password, first_name, last_name, email, role }, thunkAPI) => {
-        try {
-            // 1. Call backend signup
-            const signupResponse = await axios.post(
-                'http://localhost:8000/api/users/signup/',
-                { username, password, first_name, last_name, email, role }
-            );
+  "auth/signupUser",
+  async (formData, thunkAPI) => {
+    try {
+      await authApi.signup(formData);
 
-            // 2. Automatically log in after signup
-            const tokenResponse = await axios.post(
-                'http://localhost:8000/api/token/',
-                { username, password }
-            );
+      const tokenRes = await authApi.login(formData.username, formData.password);
+      const { access, refresh } = tokenRes.data;
 
-            const { access, refresh } = tokenResponse.data;
+      const userRes = await authApi.getMe(access);
 
-            // 3. Fetch user profile
-            const userResponse = await axios.get(
-                'http://localhost:8000/api/users/me/',
-                {
-                    headers: { Authorization: `Bearer ${access}` }
-                }
-            );
-
-            return {
-                access,
-                refresh,
-                user: userResponse.data,
-            };
-
-        } catch (error) {
-            return thunkAPI.rejectWithValue(error.response?.data || "Signup failed");
-        }
+      return { access, refresh, user: userRes.data };
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data || { detail: "Signup failed" }
+      );
     }
+  }
 );
 
+const loadState = () => {
+  try {
+    return {
+      user: JSON.parse(sessionStorage.getItem("user")),
+      accessToken: sessionStorage.getItem("access"),
+      refreshToken: sessionStorage.getItem("refresh"),
+    };
+  } catch {
+    return { user: null, accessToken: null, refreshToken: null };
+  }
+};
+
+const saved = loadState();
 
 const authSlice = createSlice({
-    name: 'auth',
-    initialState: {
-        user: JSON.parse(localStorage.getItem("user")) || null,
-        accessToken: localStorage.getItem("access") || null,
-        refreshToken: localStorage.getItem("refresh") || null,
-        loading: false,
-        error: null,
+  name: "auth",
+  initialState: {
+    user: saved.user,
+    accessToken: saved.accessToken,
+    refreshToken: saved.refreshToken,
+    loading: false,
+    error: null,
+  },
+  reducers: {
+    logout: (state) => {
+      state.user = null;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.loading = false;
+      state.error = null;
+      sessionStorage.clear();
     },
-    
-
-
-    reducers: {
-        logout: (state) => {
-            state.user = null;
-            state.accessToken = null;
-            state.refreshToken = null;
-            state.loading = false;
-            state.error = null;
-
-            localStorage.removeItem("access");
-            localStorage.removeItem("refresh");
-            localStorage.removeItem("user");
-        },
-
-        updateTokens: (state, action) => {
-            state.accessToken = action.payload.access;
-            if (action.payload.refresh) {
-                state.refreshToken = action.payload.refresh;
-            }
-        },
+    updateTokens: (state, action) => {
+      state.accessToken = action.payload.access;
+      if (action.payload.refresh) {
+        state.refreshToken = action.payload.refresh;
+      }
+      sessionStorage.setItem("access", action.payload.access);
+      if (action.payload.refresh) {
+        sessionStorage.setItem("refresh", action.payload.refresh);
+      }
     },
-
-    extraReducers: (builder) => {
-        builder
-            .addCase(loginUser.pending, (state) => {
-                state.loading = true;
-                state.error = null;
-            })
-            .addCase(loginUser.fulfilled, (state, action) => {
-                state.loading = false;
-                state.user = action.payload.user;
-                state.accessToken = action.payload.access;
-                state.refreshToken = action.payload.refresh;
-
-
-                localStorage.setItem("access", action.payload.access);
-                localStorage.setItem("refresh", action.payload.refresh);
-                localStorage.setItem("user", JSON.stringify(action.payload.user));
-
-            })
-            .addCase(loginUser.rejected, (state, action) => {
-                state.loading = false;
-                state.error = action.payload || 'Something went wrong';
-            })
-
-            .addCase(signupUser.pending, (state) => {
-                state.loading = true;
-                state.error = null;
-            })
-            .addCase(signupUser.fulfilled, (state, action) => {
-                state.loading = false;
-                state.user = action.payload.user;
-                state.accessToken = action.payload.access;
-                state.refreshToken = action.payload.refresh;
-
-                localStorage.setItem("access", action.payload.access);
-                localStorage.setItem("refresh", action.payload.refresh);
-                localStorage.setItem("user", JSON.stringify(action.payload.user));
-
-            })
-            .addCase(signupUser.rejected, (state, action) => {
-                state.loading = false;
-                state.error = action.payload || "Signup failed";
-            });
-            
+    clearError: (state) => {
+      state.error = null;
     },
+  },
+  extraReducers: (builder) => {
+    const handlePending = (state) => {
+      state.loading = true;
+      state.error = null;
+    };
 
+    const handleFulfilled = (state, action) => {
+      state.loading = false;
+      state.user = action.payload.user;
+      state.accessToken = action.payload.access;
+      state.refreshToken = action.payload.refresh;
+
+      sessionStorage.setItem("access", action.payload.access);
+      sessionStorage.setItem("refresh", action.payload.refresh);
+      sessionStorage.setItem("user", JSON.stringify(action.payload.user));
+    };
+
+    const handleRejected = (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+    };
+
+    builder
+      .addCase(loginUser.pending, handlePending)
+      .addCase(loginUser.fulfilled, handleFulfilled)
+      .addCase(loginUser.rejected, handleRejected)
+      .addCase(signupUser.pending, handlePending)
+      .addCase(signupUser.fulfilled, handleFulfilled)
+      .addCase(signupUser.rejected, handleRejected);
+  },
 });
 
-
-export const { logout, updateTokens } = authSlice.actions;
+export const { logout, updateTokens, clearError } = authSlice.actions;
 export default authSlice.reducer;
-
-

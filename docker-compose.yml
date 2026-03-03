@@ -4,10 +4,7 @@ services:
   api:
     build: ./api
     container_name: school_api
-    # Temporarily override command to keep container alive
-    # command: tail -f /dev/null
     command: python manage.py runserver 0.0.0.0:8000
-
     volumes:
       - ./api:/app
     ports:
@@ -15,7 +12,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 
   frontend:
@@ -46,6 +44,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

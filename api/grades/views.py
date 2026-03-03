@@ -1,36 +1,55 @@
-# grades/views.py
-
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from .models import GradeEntry
-from classes.models import ClassSubject, SchoolClass
-from teachers.models import Subject
-from .serializers import GradeEntrySerializer
-from .permissions import IsSubjectTeacher, IsClassTeacher, CanEnterGradeForThisCategory
-from users.permissions import IsParent
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Avg, Sum
-from .serializers import StudentSummarySerializer
+from django.db.models import Sum, Avg
+
+from .models import GradeEntry
+from .serializers import GradeEntrySerializer, GradeEntryUpdateSerializer
+from .permissions import CanEnterGrades, CanViewGrades
+from users.permissions import IsParent
+from classes.models import Term
+
+
+GRADE_SELECT_RELATED = [
+    "student__user", "student__school_class",
+    "class_subject__subject", "class_subject__school_class",
+    "teacher__user", "term__session",
+]
+
+
+def filter_by_term(queryset, request):
+    term_id = request.query_params.get("term")
+    if term_id:
+        return queryset.filter(term_id=term_id)
+    return queryset
+
 
 class GradeEntryCreateView(generics.CreateAPIView):
-    """
-    Teachers enter grades for a student in a specific category.
-    Permissions:
-        - Must be assigned subject teacher
-        - Must be class teacher or have permission from class teacher
-        - Must use a valid grade category
-    """
     queryset = GradeEntry.objects.all()
     serializer_class = GradeEntrySerializer
-    permission_classes = [IsAuthenticated, IsSubjectTeacher, IsClassTeacher, CanEnterGradeForThisCategory]
+    permission_classes = [IsAuthenticated, CanEnterGrades]
+
+
+class GradeEntryUpdateView(generics.UpdateAPIView):
+    serializer_class = GradeEntryUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return GradeEntry.objects.filter(
+            student__school_class__school=self.request.school
+        )
+
+    def get_object(self):
+        obj = super().get_object()
+        teacher = getattr(self.request.user, "teacher_profile", None)
+        if not teacher or obj.teacher != teacher:
+            raise PermissionDenied("You can only edit grades you entered.")
+        return obj
 
 
 class StudentGradesView(generics.ListAPIView):
-    """
-    Students can view all their grades for the current term.
-    """
     serializer_class = GradeEntrySerializer
     permission_classes = [IsAuthenticated]
 
@@ -38,213 +57,203 @@ class StudentGradesView(generics.ListAPIView):
         user = self.request.user
         if user.role != "student":
             return GradeEntry.objects.none()
-        # Optional: filter by current term
-        current_term = self.request.query_params.get('term')
-        qs = GradeEntry.objects.filter(student=user.student_profile)
-        if current_term:
-            qs = qs.filter(term=current_term)
-        return qs
+        qs = GradeEntry.objects.filter(
+            student=user.student_profile,
+            student__school_class__school=self.request.school,
+        ).select_related(*GRADE_SELECT_RELATED)
+        return filter_by_term(qs, self.request)
 
 
 class ParentGradesView(generics.ListAPIView):
-    """
-    Parents can view grades for their children only.
-    """
     serializer_class = GradeEntrySerializer
-    permission_classes = [IsParent]
+    permission_classes = [IsAuthenticated, IsParent]
 
     def get_queryset(self):
-        user = self.request.user
-        children = user.parent_profile.students.all()
-        current_term = self.request.query_params.get('term')
-        qs = GradeEntry.objects.filter(student__in=children)
-        if current_term:
-            qs = qs.filter(term=current_term)
-        return qs
-
-
-class SubjectGradesView(generics.ListAPIView):
-    """
-    Teacher can see all grades for a subject they teach.
-    """
-    serializer_class = GradeEntrySerializer
-    permission_classes = [IsAuthenticated, IsSubjectTeacher]
-
-    def get_queryset(self):
-        subject_id = self.kwargs.get("subject_id")
-        teacher_profile = self.request.user.teacher_profile
-
-        if not teacher_profile.subjects.filter(id=subject_id).exists():
-            raise PermissionDenied("You are not assigned to this subject.")
-
-        current_term = self.request.query_params.get('term')
-        qs = GradeEntry.objects.filter(subject_id=subject_id)
-        if current_term:
-            qs = qs.filter(term=current_term)
-        return qs
+        parent = self.request.user.parent_profile
+        children_ids = parent.students.values_list("id", flat=True)
+        qs = GradeEntry.objects.filter(
+            student_id__in=children_ids,
+            student__school_class__school=self.request.school,
+        ).select_related(*GRADE_SELECT_RELATED)
+        return filter_by_term(qs, self.request)
 
 
 class ClassGradesView(generics.ListAPIView):
-    """
-    Class teacher can view all grades for their class.
-    """
     serializer_class = GradeEntrySerializer
-    permission_classes = [IsAuthenticated, IsClassTeacher]
+    permission_classes = [IsAuthenticated, CanViewGrades]
 
     def get_queryset(self):
         class_id = self.kwargs.get("class_id")
-        teacher_profile = self.request.user.teacher_profile
+        user = self.request.user
 
-        # Check if teacher is assigned to this class
-        if not teacher_profile.classes.filter(id=class_id).exists():
-            raise PermissionDenied("You are not assigned to this class.")
+        if user.role == "teacher":
+            teacher = user.teacher_profile
+            manages = teacher.classes_managed.filter(id=class_id).exists()
+            teaches = teacher.class_subjects.filter(school_class_id=class_id).exists()
+            if not (manages or teaches):
+                raise PermissionDenied("You are not assigned to this class.")
 
-        current_term = self.request.query_params.get('term')
-        qs = GradeEntry.objects.filter(student__school_class_id=class_id)
-        if current_term:
-            qs = qs.filter(term=current_term)
-        return qs
+        elif user.role not in ("admin",):
+            raise PermissionDenied("You cannot view class grades.")
+
+        qs = GradeEntry.objects.filter(
+            student__school_class_id=class_id,
+            student__school_class__school=self.request.school,
+        ).select_related(*GRADE_SELECT_RELATED)
+        return filter_by_term(qs, self.request)
 
 
-class StudentSubjectGradesView(generics.ListAPIView):
-    """
-    Teacher or student can view grades for a specific student in a subject.
-    """
+class SubjectGradesView(generics.ListAPIView):
     serializer_class = GradeEntrySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewGrades]
 
     def get_queryset(self):
-        student_id = self.kwargs.get("student_id")
         subject_id = self.kwargs.get("subject_id")
         user = self.request.user
 
-        # Students can only view themselves
-        if user.role == "student" and user.student_profile.id != student_id:
-            return GradeEntry.objects.none()
-
-        # Teachers must teach the subject or be class teacher
         if user.role == "teacher":
-            teacher_profile = user.teacher_profile
-            subject_check = teacher_profile.subjects.filter(id=subject_id).exists()
-            class_check = teacher_profile.classes.filter(students__id=student_id).exists()
-            if not (subject_check or class_check):
-                raise PermissionDenied("You cannot view grades for this student in this subject.")
+            teacher = user.teacher_profile
+            if not teacher.class_subjects.filter(subject_id=subject_id).exists():
+                raise PermissionDenied("You are not assigned to teach this subject.")
 
-        current_term = self.request.query_params.get('term')
-        qs = GradeEntry.objects.filter(student_id=student_id, subject_id=subject_id)
-        if current_term:
-            qs = qs.filter(term=current_term)
-        return qs
+        elif user.role not in ("admin",):
+            raise PermissionDenied("You cannot view subject grades.")
+
+        qs = GradeEntry.objects.filter(
+            class_subject__subject_id=subject_id,
+            student__school_class__school=self.request.school,
+        ).select_related(*GRADE_SELECT_RELATED)
+        return filter_by_term(qs, self.request)
 
 
 class StudentGradeSummaryView(APIView):
-    """ /grades/student/{student_id}/summary/ """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, student_id):
-        grades = GradeEntry.objects.filter(student_id=student_id)
-        if not grades.exists():
-            return Response({"detail": "No grades found"}, status=404)
+        user = request.user
 
-        subjects = []
-        overall_total = 0
-        overall_count = 0
+        if user.role == "student" and user.student_profile.id != student_id:
+            raise PermissionDenied("You can only view your own grades.")
+        elif user.role == "parent":
+            if not user.parent_profile.students.filter(id=student_id).exists():
+                raise PermissionDenied("This is not your child.")
 
-        # aggregate per subject
-        subject_groups = grades.values('class_subject__subject__id', 'class_subject__subject__name').annotate(
-            total_score=Sum('score'),
-            average_score=Avg('score')
-        )
+        qs = GradeEntry.objects.filter(
+            student_id=student_id,
+            student__school_class__school=request.school,
+        ).select_related("class_subject__subject", "student__user")
 
-        for g in subject_groups:
-            subjects.append({
-                "subject_id": g['class_subject__subject__id'],
-                "subject_name": g['class_subject__subject__name'],
-                "total_score": float(g['total_score']),
-                "average_score": float(g['average_score']),
-                "percentage": float(g['average_score'])  # adjust if needed
+        term_id = request.query_params.get("term")
+        if term_id:
+            qs = qs.filter(term_id=term_id)
+
+        if not qs.exists():
+            return Response({"detail": "No grades found."}, status=status.HTTP_404_NOT_FOUND)
+
+        student = qs.first().student
+        subjects = {}
+
+        for entry in qs:
+            sid = entry.class_subject.subject.id
+            if sid not in subjects:
+                subjects[sid] = {
+                    "subject_id": sid,
+                    "subject_name": entry.class_subject.subject.name,
+                    "grades": [],
+                    "total_score": 0,
+                    "total_max": 0,
+                }
+            max_score = entry.max_score
+            subjects[sid]["grades"].append({
+                "category": entry.category,
+                "category_display": entry.get_category_display(),
+                "score": float(entry.score),
+                "max_score": max_score,
             })
-            overall_total += g['total_score']
-            overall_count += 1
+            subjects[sid]["total_score"] += float(entry.score)
+            subjects[sid]["total_max"] += max_score
 
-        overall_average = overall_total / overall_count if overall_count else 0
+        subject_list = []
+        for s in subjects.values():
+            s["percentage"] = round(
+                (s["total_score"] / s["total_max"] * 100) if s["total_max"] > 0 else 0, 2
+            )
+            subject_list.append(s)
 
-        data = {
+        percentages = [s["percentage"] for s in subject_list]
+        overall = round(sum(percentages) / len(percentages), 2) if percentages else 0
+
+        return Response({
             "student_id": student_id,
-            "student_name": grades.first().student.user.get_full_name(),
-            "subjects": subjects,
-            "overall_total": float(overall_total),
-            "overall_average": float(overall_average),
-            "overall_percentage": float(overall_average)
-        }
-
-        return Response(StudentSummarySerializer(data).data)
+            "student_name": student.user.get_full_name(),
+            "subjects": subject_list,
+            "overall_percentage": overall,
+        })
 
 
 class ClassGradeSummaryView(APIView):
-    """ /grades/class/{class_id}/summary/ """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewGrades]
 
     def get(self, request, class_id):
-        students = GradeEntry.objects.filter(student__school_class_id=class_id).values('student').distinct()
-        result = []
+        user = request.user
+        if user.role == "teacher":
+            teacher = user.teacher_profile
+            if not (teacher.classes_managed.filter(id=class_id).exists()
+                    or teacher.class_subjects.filter(school_class_id=class_id).exists()):
+                raise PermissionDenied("You are not assigned to this class.")
+        elif user.role not in ("admin",):
+            raise PermissionDenied("Insufficient permissions.")
 
-        for s in students:
-            grades = GradeEntry.objects.filter(student_id=s['student'], student__school_class_id=class_id)
-            student_name = grades.first().student.user.get_full_name() if grades.exists() else ""
-            subject_groups = grades.values('class_subject__subject__id', 'class_subject__subject__name').annotate(
-                total_score=Sum('score'),
-                average_score=Avg('score')
+        qs = GradeEntry.objects.filter(
+            student__school_class_id=class_id,
+            student__school_class__school=request.school,
+        ).select_related("student__user", "class_subject__subject")
+
+        term_id = request.query_params.get("term")
+        if term_id:
+            qs = qs.filter(term_id=term_id)
+
+        students_data = {}
+        for entry in qs:
+            sid = entry.student_id
+            if sid not in students_data:
+                students_data[sid] = {
+                    "student_id": sid,
+                    "student_name": entry.student.user.get_full_name(),
+                    "subjects": {},
+                    "total_score": 0,
+                    "total_max": 0,
+                }
+
+            subj_id = entry.class_subject.subject.id
+            if subj_id not in students_data[sid]["subjects"]:
+                students_data[sid]["subjects"][subj_id] = {
+                    "subject_name": entry.class_subject.subject.name,
+                    "total_score": 0,
+                    "total_max": 0,
+                }
+
+            max_score = entry.max_score
+            students_data[sid]["subjects"][subj_id]["total_score"] += float(entry.score)
+            students_data[sid]["subjects"][subj_id]["total_max"] += max_score
+            students_data[sid]["total_score"] += float(entry.score)
+            students_data[sid]["total_max"] += max_score
+
+        result = []
+        for s in students_data.values():
+            subject_list = []
+            for subj in s["subjects"].values():
+                subj["percentage"] = round(
+                    (subj["total_score"] / subj["total_max"] * 100) if subj["total_max"] > 0 else 0, 2
+                )
+                subject_list.append(subj)
+
+            s["subjects"] = subject_list
+            s["overall_percentage"] = round(
+                (s["total_score"] / s["total_max"] * 100) if s["total_max"] > 0 else 0, 2
             )
-            subjects = []
-            overall_total = 0
-            for g in subject_groups:
-                subjects.append({
-                    "subject_id": g['class_subject__subject__id'],
-                    "subject_name": g['class_subject__subject__name'],
-                    "total_score": float(g['total_score']),
-                    "average_score": float(g['average_score']),
-                    "percentage": float(g['average_score'])
-                })
-                overall_total += g['total_score']
-            overall_average = overall_total / len(subject_groups) if subject_groups else 0
-            result.append({
-                "student_id": s['student'],
-                "student_name": student_name,
-                "subjects": subjects,
-                "overall_total": float(overall_total),
-                "overall_average": float(overall_average),
-                "overall_percentage": float(overall_average)
-            })
+            result.append(s)
 
-        return Response(result)
+        result.sort(key=lambda x: x["overall_percentage"], reverse=True)
 
-
-class SubjectGradeSummaryView(APIView):
-    """ /grades/subject/{subject_id}/summary/ """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, subject_id):
-        students = GradeEntry.objects.filter(class_subject__subject_id=subject_id).values('student').distinct()
-        result = []
-
-        for s in students:
-            grades = GradeEntry.objects.filter(student_id=s['student'], class_subject__subject_id=subject_id)
-            total_score = grades.aggregate(total=Sum('score'))['total'] or 0
-            average_score = grades.aggregate(avg=Avg('score'))['avg'] or 0
-            student_name = grades.first().student.user.get_full_name() if grades.exists() else ""
-            result.append({
-                "student_id": s['student'],
-                "student_name": student_name,
-                "subjects": [{
-                    "subject_id": subject_id,
-                    "subject_name": grades.first().class_subject.subject.name if grades.exists() else "",
-                    "total_score": float(total_score),
-                    "average_score": float(average_score),
-                    "percentage": float(average_score)
-                }],
-                "overall_total": float(total_score),
-                "overall_average": float(average_score),
-                "overall_percentage": float(average_score)
-            })
         return Response(result)

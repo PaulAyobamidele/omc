@@ -1,63 +1,48 @@
 from rest_framework.permissions import BasePermission
-from classes.models import ClassSubject
-from teachers.models import Teacher
-
-# from rest_framework.permissions import BasePermission
 from classes.models import ClassSubjectPermission
 
-class IsSubjectTeacher(BasePermission):
+
+class CanEnterGrades(BasePermission):
     """
-    Teacher must either be the assigned subject teacher for the class
-    OR have explicit permission granted via ClassSubjectPermission.
+    Teacher can enter grades if they are EITHER:
+    1. The assigned subject teacher for this class-subject, OR
+    2. The class teacher, OR
+    3. Have explicit ClassSubjectPermission granted
     """
     def has_permission(self, request, view):
-        return hasattr(request.user, 'teacher_profile')
-
-    def has_object_permission(self, request, view, obj):
-        teacher = request.user.teacher_profile
-        student_class = getattr(obj.student, 'school_class', None)
-        if not student_class:
+        if not hasattr(request.user, "teacher_profile"):
             return False
 
-        # Check direct ClassSubject assignment
-        direct_assignment = obj.subject.class_assignments.filter(
-            school_class=student_class,
-            teacher=teacher
-        ).exists()
-
-        # Check ClassSubjectPermission table
-        permission = ClassSubjectPermission.objects.filter(
-            class_subject__school_class=student_class,
-            class_subject__subject=obj.subject,
-            teacher=teacher,
-            can_enter_grades=True
-        ).exists()
-
-        return direct_assignment or permission
-
-
-
-class IsClassTeacher(BasePermission):
-    """
-    Allows access only if the user is the class teacher of the student's class.
-    """
-    def has_permission(self, request, view):
-        return hasattr(request.user, 'teacher_profile')
-
-    def has_object_permission(self, request, view, obj):
         teacher = request.user.teacher_profile
-        student_class = getattr(obj.student, 'school_class', None)
-        if not student_class:
+        class_subject_id = request.data.get("class_subject")
+
+        if not class_subject_id:
             return False
-        return student_class.class_teacher == teacher
+
+        from classes.models import ClassSubject
+        try:
+            cs = ClassSubject.objects.select_related("school_class", "teacher").get(id=class_subject_id)
+        except ClassSubject.DoesNotExist:
+            return False
+
+        if cs.teacher == teacher:
+            return True
+
+        if cs.school_class.class_teacher == teacher:
+            return True
+
+        if ClassSubjectPermission.objects.filter(
+            class_subject=cs, teacher=teacher, can_enter_grades=True
+        ).exists():
+            return True
+
+        return False
 
 
-class CanEnterGradeForThisCategory(BasePermission):
+class CanViewGrades(BasePermission):
     """
-    Ensure the teacher can enter grade only for allowed categories.
+    Any authenticated user with a valid role can view grades
+    (further filtering happens in the queryset).
     """
-    allowed_categories = ['mid-term test', 'assignment 1', 'assignment 2', 'final examination']
-
     def has_permission(self, request, view):
-        category = request.data.get('category')
-        return category in self.allowed_categories
+        return request.user.role in ("teacher", "student", "parent", "admin")

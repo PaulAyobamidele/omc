@@ -1,49 +1,35 @@
 from rest_framework import serializers
-from teachers.models import Subject, Teacher, TeacherSubjectAssignment
-from students.models import Student
-from django.contrib.auth import get_user_model
+from .models import Subject
+from teachers.models import TeacherSubjectAssignment
 
-User = get_user_model()
 
 class SubjectSerializer(serializers.ModelSerializer):
-    """
-    Serialize Subject info.
-    """
     class Meta:
         model = Subject
-        fields = ['id', 'name', 'description']
+        fields = ["id", "name", "code", "description"]
 
 
 class SubjectDetailSerializer(serializers.ModelSerializer):
-    """
-    Include teacher assignments and students per subject.
-    """
     teachers = serializers.SerializerMethodField()
-    students = serializers.SerializerMethodField()
+    student_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Subject
-        fields = ['id', 'name', 'description', 'teachers', 'students']
+        fields = ["id", "name", "code", "description", "teachers", "student_count"]
 
     def get_teachers(self, obj):
-        assignments = TeacherSubjectAssignment.objects.filter(subject=obj)
+        assignments = TeacherSubjectAssignment.objects.filter(
+            subject=obj
+        ).select_related("teacher__user")
         return [
             {
-                'id': t.teacher.id,
-                'name': f"{t.teacher.user.first_name} {t.teacher.user.last_name}"
-            } for t in assignments
+                "id": a.teacher.id,
+                "name": a.teacher.user.get_full_name(),
+            }
+            for a in assignments
         ]
 
-    def get_students(self, obj):
-        classes = obj.class_subjects.all()
-        students = []
-        for cs in classes:
-            students += list(cs.school_class.students.all())
-        # Remove duplicates
-        unique_students = {s.id: s for s in students}.values()
-        return [
-            {
-                'id': s.id,
-                'name': f"{s.user.first_name} {s.user.last_name}"
-            } for s in unique_students
-        ]
+    def get_student_count(self, obj):
+        from students.models import Student
+        class_ids = obj.class_assignments.values_list("school_class_id", flat=True)
+        return Student.objects.filter(school_class_id__in=class_ids).distinct().count()

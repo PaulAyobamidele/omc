@@ -1,129 +1,194 @@
-"use client";
+import { useState, useEffect } from "react";
+import { gradesApi, classesApi, studentsApi } from "../../api/services";
+import { useSearchParams } from "react-router-dom";
 
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+const CATEGORIES = [
+  { value: "MIDTERM", label: "Midterm Test", max: 20 },
+  { value: "ASSIGNMENT1", label: "Assignment 1", max: 10 },
+  { value: "ASSIGNMENT2", label: "Assignment 2", max: 10 },
+  { value: "EXAM", label: "Final Exam", max: 60 },
+];
 
+export default function EnterGrade() {
+  const [searchParams] = useSearchParams();
+  const [classSubjects, setClassSubjects] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [message, setMessage] = useState(null);
 
-export default function EnterGradeForm() {
   const [form, setForm] = useState({
     student: "",
-    subject: "",
+    class_subject: searchParams.get("class_subject") || "",
+    category: "",
     score: "",
-    comments: "",
   });
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  useEffect(() => {
+    classesApi.classSubjects()
+      .then((res) => {
+        setClassSubjects(res.data.results || res.data || []);
+      })
+      .catch((err) => {
+        setLoadError(err.response?.data?.detail || "Failed to load classes.");
+      });
+  }, []);
 
-  function handleChange(e) {
+  useEffect(() => {
+    if (form.class_subject) {
+      const cs = classSubjects.find(
+        (c) => c.id === parseInt(form.class_subject)
+      );
+      if (cs) {
+        studentsApi.byClass(cs.school_class)
+          .then((res) => {
+            setStudents(res.data.results || res.data || []);
+          })
+          .catch(() => setStudents([]));
+      }
+    } else {
+      setStudents([]);
+    }
+  }, [form.class_subject, classSubjects]);
+
+  const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
-  }
+    setMessage(null);
+  };
 
-  async function handleSubmit(e) {
+  const selectedCategory = CATEGORIES.find((c) => c.value === form.category);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage("");
+    setMessage(null);
 
     try {
-      const res = await fetch("/api/grades/enter/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access")}`,
-        },
-        body: JSON.stringify(form),
+      await gradesApi.enter({
+        student: parseInt(form.student),
+        class_subject: parseInt(form.class_subject),
+        category: form.category,
+        score: parseFloat(form.score),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.detail || "Failed to submit grade");
-      }
-
-      setMessage("Grade submitted successfully!");
-      setForm({ student: "", subject: "", score: "", comments: "" });
+      setMessage({ type: "success", text: "Grade submitted successfully." });
+      setForm({ ...form, student: "", category: "", score: "" });
     } catch (err) {
-      setMessage(err.message);
+      const detail =
+        err.response?.data?.detail ||
+        err.response?.data?.non_field_errors?.[0] ||
+        JSON.stringify(err.response?.data) ||
+        "Failed to submit grade";
+      setMessage({ type: "error", text: detail });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="flex min-h-screen flex-col justify-center px-6 py-12 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-10 text-center text-2xl font-bold tracking-tight text-white">
-          Enter Grade
-        </h2>
-        <p className="text-center text-gray-400 mt-2">
-          Teachers can submit grades for any student.
-        </p>
+    <div className="dashboard">
+      <div className="page-header">
+        <h1>Enter Grade</h1>
+        <p className="page-subtitle">Submit a grade for a student</p>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-md bg-gray-900 p-6 rounded-xl shadow-xl border border-gray-700">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      {loadError && <div className="form-message error">{loadError}</div>}
 
-          <div>
-            <Label htmlFor="student" className="text-gray-300">Student ID</Label>
-            <Input
+      <div className="form-card">
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="class_subject">Class — Subject</label>
+            <select
+              id="class_subject"
+              name="class_subject"
+              value={form.class_subject}
+              onChange={handleChange}
+              required
+            >
+              <option value="">Select class & subject</option>
+              {classSubjects.map((cs) => (
+                <option key={cs.id} value={cs.id}>
+                  {cs.school_class_name} — {cs.subject_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="student">Student</label>
+            <select
+              id="student"
               name="student"
               value={form.student}
               onChange={handleChange}
-              placeholder="Enter student ID"
               required
-              className="mt-2"
-            />
+              disabled={!form.class_subject}
+            >
+              <option value="">
+                {form.class_subject
+                  ? "Select a student"
+                  : "Select class first"}
+              </option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.full_name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div>
-            <Label htmlFor="subject" className="text-gray-300">Subject</Label>
-            <Input
-              name="subject"
-              value={form.subject}
-              onChange={handleChange}
-              placeholder="e.g. Mathematics"
-              required
-              className="mt-2"
-            />
-          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="category">Category</label>
+              <select
+                id="category"
+                name="category"
+                value={form.category}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select category</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label} (max {c.max})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <Label htmlFor="score" className="text-gray-300">Score</Label>
-            <Input
-              type="number"
-              name="score"
-              value={form.score}
-              onChange={handleChange}
-              placeholder="0 - 100"
-              required
-              className="mt-2"
-            />
+            <div className="form-group">
+              <label htmlFor="score">
+                Score{" "}
+                {selectedCategory && (
+                  <span className="text-muted">/ {selectedCategory.max}</span>
+                )}
+              </label>
+              <input
+                id="score"
+                name="score"
+                type="number"
+                step="0.01"
+                min="0"
+                max={selectedCategory?.max || 100}
+                value={form.score}
+                onChange={handleChange}
+                placeholder="0"
+                required
+              />
+            </div>
           </div>
-
-          <div>
-            <Label htmlFor="comments" className="text-gray-300">Comments</Label>
-            <Textarea
-              name="comments"
-              value={form.comments}
-              onChange={handleChange}
-              placeholder="Optional notes about performance"
-              className="mt-2"
-            />
-          </div>
-
-          <Button type="submit" disabled={loading} className="w-full text-white">
-            {loading ? "Submitting..." : "Submit Grade"}
-          </Button>
 
           {message && (
-            <p className="text-center text-sm text-gray-300 mt-3">{message}</p>
+            <div className={`form-message ${message.type}`}>
+              {message.text}
+            </div>
           )}
 
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? "Submitting..." : "Submit Grade"}
+          </button>
         </form>
       </div>
     </div>
   );
 }
+

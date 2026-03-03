@@ -1,103 +1,135 @@
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { fetchParentStudents, createStudent } from "../student/studentSlice.jsx";
+import { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
+import { gradesApi, studentsApi, classesApi } from "../../api/services";
+import { authApi } from "../../api/authApi";
 
-const ParentDashboard = () => {
-  const dispatch = useDispatch();
-  const { list: students, loading, error, createLoading, createError } = useSelector(
-    (state) => state.students
-  );
-
-  const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-    date_of_birth: "",
-    class_level: "",
-    parent_id: "", // optional, for teachers
-  });
+export default function ParentDashboard() {
+  const { user } = useSelector((state) => state.auth);
+  const [children, setChildren] = useState([]);
+  const [grades, setGrades] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    dispatch(fetchParentStudents());
-  }, [dispatch]);
+    loadData();
+  }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const result = await dispatch(createStudent(form));
-
-    if (result.meta.requestStatus === "fulfilled") {
-      alert(`Student created! Username: ${result.payload.username}, Password: ${result.payload.password}`);
-      setForm({ first_name: "", last_name: "", date_of_birth: "", class_level: "", parent_id: "" });
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [meRes, gradesRes] = await Promise.all([
+        authApi.getMe(),
+        gradesApi.parentGrades(),
+      ]);
+      setChildren(meRes.data.profile?.children || []);
+      setGrades(gradesRes.data.results || gradesRes.data || []);
+    } catch (err) {
+      console.error("Failed to load dashboard data:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  if (loading) {
+    return <div className="loading-state">Loading your dashboard...</div>;
+  }
+
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Parent Dashboard</h1>
+    <div className="dashboard">
+      <div className="page-header">
+        <h1>Parent Dashboard</h1>
+        <p className="page-subtitle">
+          Overview of your children's academic progress
+        </p>
+      </div>
 
-      <h2>Create New Student</h2>
-      <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
-        <input
-          type="text"
-          name="first_name"
-          placeholder="First Name"
-          value={form.first_name}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="text"
-          name="last_name"
-          placeholder="Last Name"
-          value={form.last_name}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="date"
-          name="date_of_birth"
-          placeholder="Date of Birth"
-          value={form.date_of_birth}
-          onChange={handleChange}
-        />
-        <input
-          type="text"
-          name="class_level"
-          placeholder="Class Level"
-          value={form.class_level}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="text"
-          name="parent_id"
-          placeholder="Parent ID (Teacher Only)"
-          value={form.parent_id}
-          onChange={handleChange}
-        />
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-value">{children.length}</div>
+          <div className="stat-label">Children Enrolled</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{grades.length}</div>
+          <div className="stat-label">Grade Entries</div>
+        </div>
+        <div className="stat-card accent">
+          <div className="stat-value">
+            {children.filter((c) => c.class).length}
+          </div>
+          <div className="stat-label">Assigned to Classes</div>
+        </div>
+      </div>
 
-        <button type="submit" disabled={createLoading}>
-          {createLoading ? "Creating..." : "Create Student"}
-        </button>
-        {createError && <p style={{ color: "red" }}>{JSON.stringify(createError)}</p>}
-      </form>
+      <div className="section">
+        <h2>My Children</h2>
+        {children.length === 0 ? (
+          <div className="empty-state">
+            <p>No children registered yet.</p>
+            <a href="/parent/add-child" className="btn btn-primary">
+              Add Your First Child
+            </a>
+          </div>
+        ) : (
+          <div className="card-grid">
+            {children.map((child) => (
+              <div key={child.id} className="info-card">
+                <div className="info-card-header">
+                  <div className="avatar">{child.name?.[0]}</div>
+                  <div>
+                    <h3>{child.name}</h3>
+                    <span className="badge">{child.class || "No Class"}</span>
+                  </div>
+                </div>
+                <div className="info-card-actions">
+                  <a
+                    href={`/parent/grades?student=${child.id}`}
+                    className="btn btn-sm"
+                  >
+                    View Grades
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <h2>My Students</h2>
-      {loading && <p>Loading students...</p>}
-      {error && <p style={{ color: "red" }}>{JSON.stringify(error)}</p>}
-
-      <ul>
-        {students.map((student) => (
-          <li key={student.student_id || student.id}>
-            {student.first_name} {student.last_name} (ID: {student.student_id || student.id})
-          </li>
-        ))}
-      </ul>
+      {grades.length > 0 && (
+        <div className="section">
+          <h2>Recent Grades</h2>
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Subject</th>
+                  <th>Category</th>
+                  <th>Score</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grades.slice(0, 10).map((g) => (
+                  <tr key={g.id}>
+                    <td>{g.student_name}</td>
+                    <td>{g.subject_name}</td>
+                    <td>
+                      <span className="badge badge-outline">
+                        {g.category_display}
+                      </span>
+                    </td>
+                    <td className="font-mono">
+                      {g.score}/{g.max_score}
+                    </td>
+                    <td className="text-muted">
+                      {new Date(g.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default ParentDashboard;
+}
